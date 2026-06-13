@@ -37,10 +37,10 @@
 | **Multi-agent architecture** | 5 specialist LangGraph nodes: Supervisor, Order Lookup, Policy & Returns, Escalation, General |
 | **Multi-intent decomposition** | Supervisor detects multiple intents in one message and routes sequentially; `response_combiner` merges partial responses |
 | **OTP identity verification** | Order lookup requires a 6-digit OTP sent to the customer's email before revealing order data |
-| **Advanced RAG** | Hybrid BM25 + dense vector search + cross-encoder reranking; agentic retriever with step-back prompting |
+| **Advanced RAG** | Hybrid BM25 + dense vector search + cross-encoder reranking; agentic retriever with LLM-driven decide/retrieve/grade pipeline |
 | **Short-term memory** | LangGraph `SqliteSaver` — per-session conversation history |
 | **Long-term memory** | ChromaDB semantic store — cross-session customer context recalled by supervisor |
-| **Input guardrail** | Regex + LLM-based prompt injection and jailbreak detection |
+| **Input guardrail** | Regex pattern matching for prompt injection, jailbreak, and social engineering detection |
 | **Policy guardrail** | Refund limits ($500 cap), return window (30 days), non-returnable items |
 | **Output guardrail** | Profanity detection, threat detection, PII redaction (email, credit card, SSN) |
 | **LLM judge node** | Scores every response on faithfulness, answer relevancy, and context precision (0–1) |
@@ -117,7 +117,7 @@ data-mining_project/
 │   ├── faqs.json                 # 20 FAQs
 │   ├── shipping_policy.md        # Shipping policy document
 │   ├── returns_policy.md         # Returns & refunds policy
-│   ├── mock_orders.json          # 8 sample orders
+│   ├── mock_orders.json          # 200 synthetic orders
 │   ├── customers.json            # Customer profiles
 │   ├── chroma_db/                # ChromaDB persistent store
 │   ├── memory.db                 # SQLite short-term memory
@@ -127,8 +127,6 @@ data-mining_project/
 │   ├── indexer.py                # ChromaDB document indexer
 │   ├── retriever.py              # Hybrid BM25 + dense + reranking pipeline
 │   ├── agentic_retriever.py      # LLM-driven decide/retrieve/grade loop
-│   ├── stepback_retriever.py     # Step-back prompting for broader queries
-│   ├── bm25_rrf_retriever.py     # BM25 + Reciprocal Rank Fusion
 │   └── naive_retriever.py        # Simple dense-only retriever
 ├── agents/
 │   ├── supervisor.py             # Orchestrator: intent classification + decomposition
@@ -151,13 +149,10 @@ data-mining_project/
 │   ├── dashboard.py              # Streamlit dashboard (Plotly charts)
 │   └── ragas_eval.py             # RAGAS evaluation pipeline
 ├── tools/
-│   ├── order_tools.py            # LangChain tools: order lookup, OTP
-│   └── policy_tools.py           # LangChain tools: policy/FAQ search
+│   └── order_tools.py            # LangChain tools: order lookup, OTP
 ├── scripts/
 │   ├── index_documents.py        # One-time indexing script
-│   ├── run_eval_conversations.py # Runs 30 scripted eval scenarios
-│   ├── live_agent_test.py        # Manual live testing helper
-│   └── test_otp_flow.py          # OTP flow smoke test
+│   └── run_eval_conversations.py # Runs 30 scripted eval scenarios
 ├── tests/
 │   ├── test_agents.py            # General agent unit tests
 │   ├── test_supervisor.py        # Supervisor: routing, decomposition, OTP (63 tests)
@@ -181,8 +176,6 @@ data-mining_project/
 
 ```
 Customer query
-      │
-      ├─── Step-back prompting                      → broader reformulated query
       │
       ├─── BM25 sparse search (rank-bm25)           → top-10 candidates
       │
@@ -297,7 +290,7 @@ Agent:    I completely understand your frustration. Unfortunately, 55 days is
 |-----------|-----------|
 | Agent framework | LangGraph 0.2+ |
 | LLM orchestration | LangChain 0.3+ |
-| LLM provider | Groq (`llama-3.3-70b-versatile`) |
+| LLM provider | Groq (`llama-3.1-8b-instant`) |
 | Vector database | ChromaDB (persistent) |
 | Embeddings | sentence-transformers (`all-MiniLM-L6-v2`) |
 | Reranking | sentence-transformers CrossEncoder (`ms-marco-MiniLM-L-6-v2`) |
